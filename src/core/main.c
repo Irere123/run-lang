@@ -9,14 +9,20 @@
 
 static void repl()
 {
+    // Max number of characters to evaluate at once
+    // 1024 is a hardcoded termina limit, for longer inputs, the repl mode isn't suitable
     char line[1024];
 
+    // REPL = Read-Eval-Print-Loop
+    // Here is the loop
     for (;;)
     {
         printf("> ");
 
+        // fgets will read 1024 characters (we need space for the null character) and store it in {line}.
         if (!fgets(line, sizeof(line), stdin))
         {
+            // We failed to read the line
             printf("\n");
             break;
         }
@@ -25,7 +31,7 @@ static void repl()
     }
 }
 
-static char* readFile(const char *path)
+static char *readFile(const char *path)
 {
     FILE *file = fopen(path, "rb");
 
@@ -57,7 +63,6 @@ static char* readFile(const char *path)
     return buffer;
 }
 
-
 static void runFile(const char *path)
 {
     char *source = readFile(path);
@@ -69,7 +74,6 @@ static void runFile(const char *path)
     if (result == INTERPRET_RUNTIME_ERROR)
         exit(70);
 }
-
 
 int main(int argc, const char *argv[])
 {

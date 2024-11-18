@@ -3,6 +3,31 @@
 #include "debug.h"
 #include "value.h"
 
+void disassembleChunk(Chunk *chunk, const char *name)
+{
+    printf("== %s ==\n", name);
+
+    for (int offset = 0; offset < chunk->count;)
+    {
+        offset = disassembleInstruction(chunk, offset);
+    }
+}
+
+static int constantInstruction(const char *name, Chunk *chunk,
+                               int offset)
+{
+    // next item in the chunk's code array is the index of the constant in the
+    // chunk's constants array
+    uint8_t constant = chunk->code[offset + 1];
+    printf("%-16s %9d '", name, constant);
+    // printing the index of the constant in the chunk alone isn't useful.
+    // Here, we also print the value is self
+    printValue(chunk->constants.values[constant]);
+    printf("'\n");
+    // The beginning of the next instruction.
+    return offset + 2;
+}
+
 static int simpleInstruction(const char *name, int offset)
 {
     printf("%s\n", name);
@@ -22,30 +47,9 @@ static int jumpInstruction(const char *name, int sign,
 {
     uint16_t jump = (uint16_t)(chunk->code[offset + 1] << 8);
     jump |= chunk->code[offset + 2];
-    printf("%-16s %d -> %d\n", name, offset, offset,
+    printf("%-16s %4d -> %d\n", name, offset,
            offset + 3 + sign * jump);
     return offset + 3;
-}
-
-static int constantInstruction(const char *name, Chunk *chunk,
-                               int offset)
-{
-    uint8_t constant = chunk->code[offset + 1];
-    printf("%-16s %4d '", name, constant);
-    printValue(chunk->constants.values[constant]);
-    printf("'\n");
-
-    return offset + 2;
-}
-
-void disassembleChunk(Chunk *chunk, const char *name)
-{
-    printf("== %s ==\n", name);
-
-    for (int offset = 0; offset < chunk->count;)
-    {
-        offset = disassembleInstruction(chunk, offset);
-    }
 }
 
 int disassembleInstruction(Chunk *chunk, int offset)
@@ -108,6 +112,8 @@ int disassembleInstruction(Chunk *chunk, int offset)
         return jumpInstruction("OP_JUMP", 1, chunk, offset);
     case OP_LOOP:
         return jumpInstruction("OP_LOOP", -1, chunk, offset);
+    case OP_CALL:
+        return byteInstruction("OP_CALL", chunk, offset);
     case OP_JUMP_IF_FALSE:
         return jumpInstruction("OP_JUMP_IF_FALSE", 1, chunk, offset);
     case OP_RETURN:

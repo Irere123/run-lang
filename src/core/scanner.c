@@ -18,17 +18,21 @@ static bool isAtEnd()
     return *scanner.current == '\0';
 }
 
+// Returns the current character and moves to the next one
 static char advance()
 {
     scanner.current++;
+    //  -1 just substracts 1 from the pointer before de-referencing it
     return scanner.current[-1];
 }
 
+// Returns the current charater
 static char peek()
 {
     return *scanner.current;
 }
 
+// Returns the next character
 static char peekNext()
 {
     if (!isAtEnd())
@@ -147,9 +151,14 @@ static Token number()
     return makeToken(TOKEN_NUMBER);
 }
 
+// Checks if the next [length] characters match [rest], indicating that a keyword has been matched
+// Otherwise, assume it to be an identifier
 static TokenType checkKeyword(int start, int length, const char *rest, TokenType type)
 {
-    if (scanner.current - scanner.start == start + length && memcmp(scanner.start + start, rest, length) == 0)
+    // start + length =  the full length of the keyword
+    // since the full keyword has been consumed, `scanner.current -  scanner.start` should bethe keyword
+    if (scanner.current - scanner.start == start + length &&
+        memcmp(scanner.start + start, rest, length) == 0)
     {
         return type;
     }
@@ -158,6 +167,11 @@ static TokenType checkKeyword(int start, int length, const char *rest, TokenType
 
 static TokenType identifierType()
 {
+    // We have scanned the full token, but there's no need to do a hash table looup.
+    // we norrow down the keyword case by observing 1-2 characters.
+
+    // Given that we have access to the full string (scanner.start to scanner.current), it would be great if
+    // we could use a switch statement over the token, however switching over strings is not possible in 'C'
     switch (scanner.start[0])
     {
     case 'a':
@@ -168,6 +182,22 @@ static TokenType identifierType()
         return checkKeyword(1, 3, "lse", TOKEN_ELSE);
     case 'i':
         return checkKeyword(1, 1, "f", TOKEN_IF);
+    case 'f':
+        // false | for | fun | fin
+        if (scanner.current - scanner.start > 1)
+        {
+            // We have a token with 2+ characters (as opposed to a variable with the name 'f')
+            switch (scanner.start[1])
+            {
+            case 'a':
+                return checkKeyword(2, 3, "lse", TOKEN_FALSE);
+            case 'o':
+                return checkKeyword(2, 1, "r", TOKEN_FOR);
+            case 'u':
+                return checkKeyword(2, 1, "n", TOKEN_FUN);
+            }
+        }
+        break;
     case 'n':
         return checkKeyword(1, 2, "il", TOKEN_NIL);
     case 'o':
@@ -182,20 +212,6 @@ static TokenType identifierType()
         return checkKeyword(1, 2, "ar", TOKEN_VAR);
     case 'w':
         return checkKeyword(1, 4, "hile", TOKEN_WHILE);
-    case 'f':
-        if (scanner.current - scanner.start > 1)
-        {
-            switch (scanner.start[1])
-            {
-            case 'a':
-                return checkKeyword(2, 3, "lse", TOKEN_FALSE);
-            case 'o':
-                return checkKeyword(2, 3, "r", TOKEN_FOR);
-            case 'u':
-                return checkKeyword(2, 3, "n", TOKEN_FUN);
-            }
-        }
-        break;
     case 't':
         if (scanner.current - scanner.start > 1)
         {
@@ -219,7 +235,6 @@ static Token identifier()
         advance();
     return makeToken(identifierType());
 }
-
 
 void initScanner(const char *source)
 {
