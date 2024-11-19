@@ -51,7 +51,15 @@ typedef struct
 {
     Token name;
     int depth;
+    bool isCaptured;
 } Local;
+
+typedef struct
+{
+    uint8_t index;
+    bool isLocal;
+
+} Upvalue;
 
 typedef enum
 {
@@ -66,6 +74,7 @@ typedef struct Compiler
     FunctionType type;
 
     Local locals[UINT8_COUNT];
+    Upvalue upvalues[UINT8_COUNT];
     int localCount;
     int scopeDepth;
 } Compiler;
@@ -81,6 +90,7 @@ static uint8_t parseVariable(const char *errorMessage);
 static void statement();
 static void declaration();
 static int resolveLocal(Compiler *compiler, Token *name);
+static int resolveUpvalue(Compiler *compiler, Token *name);
 static void markInitialized();
 
 static ParseRule *getRule(TokenType type);
@@ -108,6 +118,7 @@ static void initCompiler(Compiler *compiler, FunctionType type)
 
     Local *local = &current->locals[current->localCount++];
     local->depth = 0;
+    local->isCaptured = false;
     local->name.start = "";
     local->name.length = 0;
 }
@@ -287,7 +298,14 @@ static void endScope()
 
     while (current->localCount > 0 && current->locals[current->localCount - 1].depth > current->scopeDepth)
     {
-        emitByte(OP_POP);
+        if (current->locals[current->localCount - 1].isCaptured)
+        {
+            emitByte(OP_CLOSE_UPVALUE);
+        }
+        else
+        {
+            emitByte(OP_POP);
+        }
         current->localCount--;
     }
 }
@@ -438,7 +456,17 @@ static void function(FunctionType type)
     block();
 
     ObjFunction *function = endCompiler();
-    emitBytes(OP_CONSTANT, makeConstant(OBJ_VAL(function)));
+
+    // the length of the operand varies
+    emitBytes(OP_CLOSURE, makeConstant(OBJ_VAL(function)));
+    for (int i = 0; i < function->upvalueCount; i++)
+    {
+        // 1 =  local variable in enclosing function
+        // 0  = upvalue of a function
+        emitByte(compiler.upvalues[i].isLocal ? 1 : 0);
+        // slot/upvalue index to index
+        emitByte(compiler.upvalues[i].index);
+    }
 }
 
 static void funDeclaration()
@@ -743,12 +771,23 @@ static void namedVariable(Token name, bool canAssign)
         getOp = OP_GET_LOCAL;
         setOp = OP_SET_LOCAL;
     }
+    // Look for a local variable declared in any of the surrounding functions
+    // returns the 'upvalue index' for the variable.
+    // or return -1 to indicate the variable wasn't found.
+    else if ((arg = resolveUpvalue(current, &name)) != -1)
+    {
+        // This branch is hit if we fail to resolve the variable as one within the
+        // the scope of the function being compiled.
+        getOp = OP_GET_UPVALUE;
+        setOp = OP_SET_UPVALUE;
+    }
     else
     {
         arg = identifierConstant(&name);
         getOp = OP_GET_GLOBAL;
         setOp = OP_SET_GLOBAL;
     }
+
     if (match(TOKEN_EQUAL) && canAssign)
     {
         expression();
@@ -891,6 +930,62 @@ static int resolveLocal(Compiler *compiler, Token *name)
     return -1;
 }
 
+static int addUpvalue(Compiler *compiler, uint8_t index,
+                      bool isLocal)
+{
+    int upvalueCount = compiler->function->upvalueCount;
+
+    // If we already have an upvalue pointing to a closed over varibale, reuse it
+    for (int i = 0; i < upvalueCount; i++)
+    {
+        Upvalue *upvalue = &compiler->upvalues[i];
+        if (upvalue->index == index && upvalue->isLocal == isLocal)
+        {
+            return i;
+        }
+    }
+
+    if (upvalueCount == UINT8_COUNT)
+    {
+        error("Too many closure variables in function");
+        return 0;
+    }
+
+    compiler->upvalues[upvalueCount].isLocal = isLocal;
+    compiler->upvalues[upvalueCount].index = index;
+    return compiler->function->upvalueCount++;
+}
+
+static int resolveUpvalue(Compiler *compiler, Token *name)
+{
+    // if the enclosing Compiler is NULL we have reached the outermost
+    // function without finding a local variable.
+    // the variable must be global return -1
+    if (compiler->enclosing == NULL)
+        return -1;
+
+    // We're here because we didn't resolve the variable in 'compiler'
+    // so next we try 'compiler.enclosing' ie. the parent function/script of this
+    int local = resolveLocal(compiler->enclosing, name);
+    if (local != -1)
+    {
+        // we captured a local variable
+        compiler->enclosing->locals[local].isCaptured = true;
+        return addUpvalue(compiler, (uint8_t)local, true);
+    }
+
+    // look for local variable beyond the immediately enclosing function using recursion
+    int upvalue = resolveUpvalue(compiler->enclosing, name);
+    // base case.
+    if (upvalue != -1)
+    {
+        // isLocal is false because the closure captures an upvalue from the surrounding function
+        return addUpvalue(compiler, (uint8_t)upvalue, false);
+    }
+
+    return -1;
+}
+
 static void addLocal(Token name)
 {
     if (current->localCount == UINT8_COUNT)
@@ -900,7 +995,9 @@ static void addLocal(Token name)
     }
     Local *local = &current->locals[current->localCount++];
     local->name = name;
+    // Local's start in an unitialized state
     local->depth = -1;
+    local->isCaptured = false;
 }
 
 static void declareVariable()

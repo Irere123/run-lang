@@ -1,6 +1,7 @@
 #include <stdio.h>
 
 #include "debug.h"
+#include "object.h"
 #include "value.h"
 
 void disassembleChunk(Chunk *chunk, const char *name)
@@ -54,15 +55,15 @@ static int jumpInstruction(const char *name, int sign,
 
 int disassembleInstruction(Chunk *chunk, int offset)
 {
-    printf("%04d ", offset);
+    printf("%04d ", offset); // Print the byte offset
 
     if (offset > 0 && chunk->lines[offset] == chunk->lines[offset - 1])
     {
-        printf("    | ");
+        printf("   | "); // Indicate the line is the same as the previous instruction
     }
     else
     {
-        printf("%4d ", chunk->lines[offset]);
+        printf("%4d ", chunk->lines[offset]); // Print the line number
     }
 
     uint8_t instruction = chunk->code[offset];
@@ -80,6 +81,10 @@ int disassembleInstruction(Chunk *chunk, int offset)
         return constantInstruction("OP_GET_GLOBAL", chunk, offset);
     case OP_DEFINE_GLOBAL:
         return constantInstruction("OP_DEFINE_GLOBAL", chunk, offset);
+    case OP_GET_UPVALUE:
+        return byteInstruction("OP_GET_VALUE", chunk, offset);
+    case OP_SET_UPVALUE:
+        return byteInstruction("OP_SET_UPVALUE", chunk, offset);
     case OP_EQUAL:
         return simpleInstruction("OP_EQUAL", offset);
     case OP_GREATER:
@@ -114,8 +119,30 @@ int disassembleInstruction(Chunk *chunk, int offset)
         return jumpInstruction("OP_LOOP", -1, chunk, offset);
     case OP_CALL:
         return byteInstruction("OP_CALL", chunk, offset);
+    case OP_CLOSURE:
+    {
+        offset++;
+        uint8_t constant = chunk->code[offset++];
+        printf("%-16s %4d ", "OP_CLOSURE", constant);
+        printValue(chunk->constants.values[constant]);
+        printf("\n");
+
+        // The first operand is the function itself
+        ObjFunction *function = AS_FUNCTION(chunk->constants.values[constant]);
+
+        for (int j = 0; j < function->upvalueCount; j++)
+        {
+            int isLocal = chunk->code[offset++];
+            int index = chunk->code[offset++];
+            printf("%04d      |                     %s %d\n",
+                   offset - 2, isLocal ? "local" : "upvalue", index);
+        }
+        return offset;
+    }
     case OP_JUMP_IF_FALSE:
         return jumpInstruction("OP_JUMP_IF_FALSE", 1, chunk, offset);
+    case OP_CLOSE_UPVALUE:
+        return simpleInstruction("OP_CLOSE_UPVALUE", offset);
     case OP_RETURN:
         return simpleInstruction("OP_RETURN", offset);
 
