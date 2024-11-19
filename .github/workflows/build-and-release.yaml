@@ -23,6 +23,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: List project files for debugging
+        run: ls -R
+        shell: bash
+
       - name: Set up build environment (Unix)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y build-essential
@@ -32,9 +36,15 @@ jobs:
         run: |
           choco install make
           choco install mingw
+          echo "::add-path::C:\\MinGW\\bin"
 
       - name: Build project
         run: ${{ matrix.make_cmd }}
+        shell: bash
+
+      - name: Debug build output
+        run: ls -R build/release
+        shell: bash
 
       - name: Archive build artifacts (Unix)
         if: runner.os == 'Linux'
@@ -84,8 +94,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./linux/${{ matrix.artifact_name }}
+          upload_url: ${{ steps.create-release.outputs.upload_url }}
+          asset_path: ./linux/release-linux.tar.gz
           asset_name: release-linux.tar.gz
           asset_content_type: application/gzip
 
@@ -94,7 +104,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./windows/${{ matrix.artifact_name }}
+          upload_url: ${{ steps.create-release.outputs.upload_url }}
+          asset_path: ./windows/release-windows.zip
           asset_name: release-windows.zip
           asset_content_type: application/zip
