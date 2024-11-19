@@ -35,6 +35,7 @@ jobs:
           path: release-linux.tar.gz
 
   release:
+    permissions: write-all
     needs: build
     runs-on: ubuntu-latest
 
