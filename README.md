@@ -93,12 +93,4 @@ make clean && make
 3. Push changes: `git push origin feature-name`.
 4. Open a pull request!
 
-Don’t forget to ⭐ the repo if you find it interesting: [GitHub Repository](repository-url)
-
----
-
-Happy coding with Run-lang! 🚀
-
-```
-
-```
+Don’t forget to ⭐ the repo if you find it interesting
