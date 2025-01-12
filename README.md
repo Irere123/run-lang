@@ -1,4 +1,3 @@
-````markdown
 # Run Programming Language
 
 [Experimental] Object-oriented, compiled, VM-based language designed for optimal performance and portability across different environments.
@@ -13,7 +12,6 @@
 git clone <repository-url>
 cd run-lang
 ```
-````
 
 ### 2. Build the Compiler and VM
 
@@ -25,7 +23,7 @@ make
 
 ### 3. Run Your First Program
 
-Create a file named `example.run` and add the following code:
+Create a file named `examples/example.run` and add the following code:
 
 ```run
 fun returnSum(a, b) {
@@ -100,3 +98,7 @@ Don’t forget to ⭐ the repo if you find it interesting: [GitHub Repository](r
 ---
 
 Happy coding with Run-lang! 🚀
+
+```
+
+```
