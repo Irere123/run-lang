@@ -13,14 +13,13 @@ jobs:
         include:
           - os: ubuntu-latest
             artifact_name: linux
-            build_command: make
             setup: sudo apt-get update && sudo apt-get install -y build-essential
           - os: windows-latest
             artifact_name: windows
-            build_command: mingw32-make
             setup: |
-              choco install mingw make
-              mkdir -p build/release
+              choco install mingw --force
+              choco install make --force
+              refreshenv
 
     runs-on: ${{ matrix.os }}
 
@@ -39,18 +38,32 @@ jobs:
         run: mkdir -p build/release
         shell: bash
 
-      - name: List source files (Debug)
+      - name: Debug directory structure
         run: |
+          echo "Current directory:"
           pwd
+          echo "Directory contents:"
           ls -la
+          echo "Source files:"
           find . -name "*.c"
         shell: bash
 
+      - name: Setup MSys2 (Windows)
+        if: matrix.os == 'windows-latest'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: mingw64
+          update: true
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-make
+
       - name: Build project (Windows)
         if: matrix.os == 'windows-latest'
+        shell: msys2 {0}
         run: |
-          mingw32-make SHELL=cmd.exe
-        shell: cmd
+          export PATH="/mingw64/bin:$PATH"
+          make
 
       - name: Build project (Linux)
         if: matrix.os == 'ubuntu-latest'
