@@ -18,7 +18,9 @@ jobs:
           - os: windows-latest
             artifact_name: windows
             build_command: mingw32-make
-            setup: choco install mingw make
+            setup: |
+              choco install mingw make
+              mkdir -p build/release
 
     runs-on: ${{ matrix.os }}
 
@@ -31,18 +33,40 @@ jobs:
 
       - name: Set up build environment
         run: ${{ matrix.setup }}
+        shell: bash
 
-      - name: Build project
-        run: ${{ matrix.build_command }}
+      - name: Create build directories
+        run: mkdir -p build/release
+        shell: bash
+
+      - name: List source files (Debug)
+        run: |
+          pwd
+          ls -la
+          find . -name "*.c"
+        shell: bash
+
+      - name: Build project (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          mingw32-make SHELL=cmd.exe
+        shell: cmd
+
+      - name: Build project (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: make
+        shell: bash
 
       - name: Archive build artifacts (Unix-like)
         if: matrix.os != 'windows-latest'
         run: tar -czvf release-${{ matrix.artifact_name }}.tar.gz ./build/release/
+        shell: bash
 
       - name: Archive build artifacts (Windows)
         if: matrix.os == 'windows-latest'
         run: |
           7z a -tzip release-${{ matrix.artifact_name }}.zip ./build/release/
+        shell: cmd
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
