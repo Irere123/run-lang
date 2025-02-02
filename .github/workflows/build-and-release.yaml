@@ -16,10 +16,6 @@ jobs:
             setup: sudo apt-get update && sudo apt-get install -y build-essential
           - os: windows-latest
             artifact_name: windows
-            setup: |
-              choco install mingw --force
-              choco install make --force
-              refreshenv
 
     runs-on: ${{ matrix.os }}
 
@@ -30,9 +26,21 @@ jobs:
           submodules: true
           fetch-depth: 0
 
-      - name: Set up build environment
+      - name: Set up build environment (Linux)
+        if: matrix.os == 'ubuntu-latest'
         run: ${{ matrix.setup }}
         shell: bash
+
+      - name: Set up MSYS2 (Windows)
+        if: matrix.os == 'windows-latest'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: mingw64
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-make
+            base-devel
+          update: true
 
       - name: Create build directories
         run: mkdir -p build/release
@@ -48,26 +56,23 @@ jobs:
           find . -name "*.c"
         shell: bash
 
-      - name: Setup MSys2 (Windows)
-        if: matrix.os == 'windows-latest'
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: mingw64
-          update: true
-          install: >-
-            mingw-w64-x86_64-gcc
-            mingw-w64-x86_64-make
-
       - name: Build project (Windows)
         if: matrix.os == 'windows-latest'
         shell: msys2 {0}
         run: |
-          export PATH="/mingw64/bin:$PATH"
+          gcc --version
+          which gcc
           make
 
       - name: Build project (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: make
+        shell: bash
+
+      - name: List build output (Debug)
+        run: |
+          echo "Build directory contents:"
+          ls -la build/release/
         shell: bash
 
       - name: Archive build artifacts (Unix-like)
@@ -77,9 +82,10 @@ jobs:
 
       - name: Archive build artifacts (Windows)
         if: matrix.os == 'windows-latest'
+        shell: msys2 {0}
         run: |
-          7z a -tzip release-${{ matrix.artifact_name }}.zip ./build/release/
-        shell: cmd
+          cd build/release
+          7z a -tzip ../../release-${{ matrix.artifact_name }}.zip ./*
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
