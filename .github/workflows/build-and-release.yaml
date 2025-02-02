@@ -9,7 +9,7 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, windows-latest]
         include:
           - os: ubuntu-latest
             artifact_name: linux
@@ -19,10 +19,6 @@ jobs:
             artifact_name: windows
             build_command: mingw32-make
             setup: choco install mingw make
-          - os: macos-latest
-            artifact_name: macos
-            build_command: make
-            setup: brew install make gcc
 
     runs-on: ${{ matrix.os }}
 
