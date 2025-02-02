@@ -1,13 +1,30 @@
-name: Build and Release
+name: Cross-Platform Build and Release
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - master
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            artifact_name: linux
+            build_command: make
+            setup: sudo apt-get update && sudo apt-get install -y build-essential
+          - os: windows-latest
+            artifact_name: windows
+            build_command: mingw32-make
+            setup: choco install mingw make
+          - os: macos-latest
+            artifact_name: macos
+            build_command: make
+            setup: brew install make gcc
+
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout repository
@@ -15,34 +32,45 @@ jobs:
         with:
           submodules: true
           fetch-depth: 0
+
       - name: Set up build environment
-        run: sudo apt-get update && sudo apt-get install -y build-essential
+        run: ${{ matrix.setup }}
 
       - name: Build project
-        run: make
+        run: ${{ matrix.build_command }}
 
-      - name: Archive build artifacts
-        run: tar -czvf release-linux.tar.gz ./build/release/
+      - name: Archive build artifacts (Unix-like)
+        if: matrix.os != 'windows-latest'
+        run: tar -czvf release-${{ matrix.artifact_name }}.tar.gz ./build/release/
 
-      - name: Upload release artifact
+      - name: Archive build artifacts (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          7z a -tzip release-${{ matrix.artifact_name }}.zip ./build/release/
+
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: linux-artifact
-          path: release-linux.tar.gz
+          name: ${{ matrix.artifact_name }}-artifact
+          path: release-${{ matrix.artifact_name }}.${{ matrix.os == 'windows-latest' && 'zip' || 'tar.gz' }}
 
   release:
     permissions: write-all
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Download build artifacts
+      - name: Download all build artifacts
         uses: actions/download-artifact@v4
         with:
-          name: linux-artifact
-          path: linux
-      - name: Upload Linux release asset
-        uses: actions/upload-artifact@v4
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
         with:
-          path: ./linux/release-linux.tar.gz
-          compression-level: 9
-          if-no-files-found: ignore
+          files: |
+            artifacts/*-artifact/*
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
